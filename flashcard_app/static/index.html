@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flashcard Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F3EEE3;
+    --ink: #12181A;
+    --cream: #12181A;
+    --cream-dim: #6B7570;
+    --yellow: #E8A317;
+    --teal: #14958A;
+    --rust: #B23A2E;
+  }
+
+  /* Flat color-block palette, cycled per card index */
+  .palette-0 { background: #0B1418; color: #F3EEE3; }
+  .palette-1 { background: #0F5C66; color: #F3EEE3; }
+  .palette-2 { background: #14958A; color: #0B1418; }
+  .palette-3 { background: #9AD6C3; color: #0B1418; }
+  .palette-4 { background: #E9D9A8; color: #0B1418; }
+  .palette-5 { background: #E8A317; color: #12181A; }
+  .palette-6 { background: #C56A11; color: #F3EEE3; }
+  .palette-7 { background: #B23A2E; color: #F3EEE3; }
+  .palette-8 { background: #8F2027; color: #F3EEE3; }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Space Grotesk', sans-serif;
+    padding: 2.5rem 1.25rem 4rem;
+  }
+
+  .wrap { max-width: 600px; }
+
+  .layout {
+    display: flex;
+    gap: 2.5rem;
+    max-width: 980px;
+    margin: 0 auto;
+    align-items: flex-start;
+  }
+
+  .sidebar {
+    width: 230px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 2rem;
+  }
+
+  .sidebar-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--cream-dim);
+    margin-bottom: 0.8rem;
+  }
+
+  .source-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid rgba(18,24,26,0.15);
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    font-size: 0.78rem;
+  }
+  .source-item .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .source-item .count {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--cream-dim);
+    font-size: 0.7rem;
+    flex-shrink: 0;
+  }
+  .source-item .del-btn {
+    background: none;
+    border: none;
+    color: var(--rust);
+    cursor: pointer;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+    padding: 0 0.15rem;
+  }
+  .source-item .del-btn:hover { opacity: 0.7; }
+
+  .sidebar-empty {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--cream-dim);
+    margin-bottom: 1.2rem;
+  }
+
+  .known-toggle-btn {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.25rem;
+  }
+
+  h1 {
+    font-size: 1.9rem;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  h1 span { color: var(--yellow); }
+
+  .subtitle {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--cream-dim);
+    margin-top: 0.3rem;
+    letter-spacing: 0.02em;
+  }
+
+  /* --- Tally-style stats --- */
+  .stats {
+    display: flex;
+    gap: 1.6rem;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .stat { text-align: right; }
+  .stat .num {
+    font-size: 1.6rem;
+    font-weight: 600;
+    line-height: 1;
+    display: block;
+  }
+  .stat .label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--cream-dim);
+  }
+  .stat.total .num { color: var(--yellow); }
+  .stat.known .num { color: var(--teal); }
+  .stat.learning .num { color: var(--rust); }
+
+  /* --- Upload --- */
+  .upload-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 2.25rem;
+    flex-wrap: wrap;
+  }
+  .upload-btn {
+    background: var(--ink);
+    color: var(--bg);
+    border: none;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    padding: 0.7rem 1.3rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: transform 0.15s ease;
+  }
+  .upload-btn:hover { transform: translateY(-1px); }
+  .upload-btn:active { transform: translateY(0); }
+  .upload-btn:disabled { opacity: 0.5; cursor: wait; }
+  #file-input { display: none; }
+  .file-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--cream-dim);
+  }
+  .status-msg {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--rust);
+    min-height: 1.2em;
+  }
+
+  /* --- Deck / card --- */
+  .deck-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.4rem;
+  }
+
+  .card-counter {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--cream-dim);
+    letter-spacing: 0.05em;
+    font-weight: 500;
+  }
+
+  .card-scene {
+    width: 100%;
+    max-width: 460px;
+    height: 280px;
+    perspective: 1400px;
+  }
+
+  .card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    transform-style: preserve-3d;
+    transition: transform 0.55s cubic-bezier(.4,.2,.2,1);
+  }
+  .card.flipped { transform: rotateY(180deg); }
+
+  .card-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    border-radius: 14px;
+    padding: 1.8rem 1.7rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    box-shadow: 0 16px 32px rgba(0,0,0,0.28);
+  }
+
+  .star-btn {
+    position: absolute;
+    top: 1.1rem;
+    right: 1.1rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.3rem;
+    line-height: 1;
+    color: inherit;
+    opacity: 0.85;
+    padding: 0.2rem;
+  }
+  .star-btn:hover { opacity: 1; transform: scale(1.08); }
+  .star-btn.filled { color: var(--yellow) !important; }
+
+  .card-face .tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    opacity: 0.7;
+    margin-bottom: 0.6rem;
+  }
+
+  .card-face .content {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.55rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    overflow-y: auto;
+  }
+
+  .card-face .hint {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    opacity: 0.55;
+    margin-top: 0.7rem;
+    text-transform: none;
+    font-weight: 400;
+  }
+
+  .back { transform: rotateY(180deg); }
+
+  .controls {
+    display: flex;
+    gap: 0.8rem;
+    margin-top: 0.4rem;
+  }
+  .ctrl-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    border-radius: 6px;
+    padding: 0.6rem 1.1rem;
+    border: 1px solid rgba(18,24,26,0.25);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .ctrl-btn:hover { border-color: var(--ink); }
+  .ctrl-btn.know { border-color: var(--teal); color: var(--teal); }
+  .ctrl-btn.know:hover { background: rgba(79,168,140,0.12); }
+  .ctrl-btn.learning { border-color: var(--rust); color: var(--rust); }
+  .ctrl-btn.learning:hover { background: rgba(198,93,59,0.12); }
+
+  .empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--cream-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    border: 1px dashed rgba(18,24,26,0.25);
+    border-radius: 10px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-title">Sources</div>
+      <div id="sources-list"></div>
+      <button class="ctrl-btn known-toggle-btn" id="btn-known-toggle">Known deck (0)</button>
+    </aside>
+
+    <div class="wrap">
+    <header>
+      <div>
+        <h1>Study<span>Deck</span></h1>
+        <div class="subtitle" id="mode-subtitle">notes in, flashcards out — click a card to flip it</div>
+      </div>
+      <div class="stats">
+        <div class="stat total"><span class="num" id="stat-total">0</span><span class="label">cards</span></div>
+        <div class="stat known"><span class="num" id="stat-known">0</span><span class="label">know it</span></div>
+        <div class="stat learning"><span class="num" id="stat-learning">0</span><span class="label">learning</span></div>
+      </div>
+    </header>
+
+    <div class="upload-row" id="upload-row">
+      <label class="upload-btn" for="file-input" id="upload-label">Upload notes (PDF)</label>
+      <input type="file" id="file-input" accept="application/pdf">
+      <span class="file-name" id="file-name"></span>
+    </div>
+    <div class="status-msg" id="status-msg"></div>
+
+    <div class="deck-area" id="deck-area">
+      <div class="empty-state">No flashcards yet — upload a PDF of your notes to generate some.</div>
+    </div>
+    </div>
+  </div>
+
+<script>
+  let cards = [];
+  let index = 0;
+  let viewMode = 'study'; // 'study' or 'known'
+  const progress = {}; // question -> 'learning' (local only, for the "still learning" stat)
+
+  const deckArea = document.getElementById('deck-area');
+  const statusMsg = document.getElementById('status-msg');
+  const fileInput = document.getElementById('file-input');
+  const fileNameEl = document.getElementById('file-name');
+  const uploadLabel = document.getElementById('upload-label');
+  const sourcesListEl = document.getElementById('sources-list');
+  const knownToggleBtn = document.getElementById('btn-known-toggle');
+  const uploadRow = document.getElementById('upload-row');
+  const modeSubtitle = document.getElementById('mode-subtitle');
+
+  async function loadCards() {
+    const url = viewMode === 'known' ? '/api/known' : '/api/flashcards';
+    const res = await fetch(url);
+    cards = await res.json();
+    index = 0;
+    renderDeck();
+    updateStats();
+  }
+
+  async function loadSources() {
+    const res = await fetch('/api/sources');
+    const sources = await res.json();
+
+    if (!sources.length) {
+      sourcesListEl.innerHTML = '<div class="sidebar-empty">No PDFs uploaded yet.</div>';
+    } else {
+      sourcesListEl.innerHTML = sources.map(s => `
+        <div class="source-item">
+          <span class="name" title="${escapeHtml(s.source)}">${escapeHtml(s.source)}</span>
+          <span class="count">${s.count}</span>
+          <button class="del-btn" data-source="${escapeHtml(s.source)}" title="Delete this source">✕</button>
+        </div>
+      `).join('');
+
+      sourcesListEl.querySelectorAll('.del-btn').forEach(btn => {
+        btn.addEventListener('click', () => deleteSource(btn.dataset.source));
+      });
+    }
+
+    const knownRes = await fetch('/api/known');
+    const knownCards = await knownRes.json();
+    knownToggleBtn.textContent = viewMode === 'known'
+      ? 'Back to study deck'
+      : `Known deck (${knownCards.length})`;
+  }
+
+  async function deleteSource(sourceName) {
+    if (!confirm(`Delete "${sourceName}" and all its flashcards?`)) return;
+    await fetch(`/api/sources/${encodeURIComponent(sourceName)}`, { method: 'DELETE' });
+    statusMsg.textContent = `Deleted source: ${sourceName}`;
+    await loadSources();
+    await loadCards();
+  }
+
+  knownToggleBtn.addEventListener('click', async () => {
+    viewMode = viewMode === 'known' ? 'study' : 'known';
+    uploadRow.style.display = viewMode === 'known' ? 'none' : 'flex';
+    modeSubtitle.textContent = viewMode === 'known'
+      ? 'cards you already know — nice work'
+      : 'notes in, flashcards out — click a card to flip it';
+    await loadCards();
+    await loadSources();
+  });
+
+  function updateStats() {
+    document.getElementById('stat-total').textContent = cards.length;
+    const learning = Object.values(progress).filter(v => v === 'learning').length;
+    document.getElementById('stat-learning').textContent = learning;
+    document.getElementById('stat-known').textContent = viewMode === 'known' ? cards.length : '—';
+  }
+
+  function renderDeck() {
+    if (!cards.length) {
+      const msg = viewMode === 'known'
+        ? 'No known cards yet — star a card in the study deck to save it here.'
+        : 'No flashcards yet — upload a PDF of your notes to generate some.';
+      deckArea.innerHTML = `<div class="empty-state">${msg}</div>`;
+      return;
+    }
+    const card = cards[index];
+    const paletteClass = `palette-${index % 9}`;
+
+    const actionButtons = viewMode === 'known'
+      ? ''
+      : `
+      <div class="controls">
+        <button class="ctrl-btn learning" id="btn-learning">Still learning</button>
+        <button class="ctrl-btn know" id="btn-know">Know it &#9733;</button>
+      </div>`;
+
+    deckArea.innerHTML = `
+      <div class="card-counter">CARD ${index + 1} / ${cards.length}</div>
+      <div class="card-scene">
+        <div class="card" id="flip-card">
+          <div class="card-face front ${paletteClass}">
+            <div class="tag">Question</div>
+            <div class="content">${escapeHtml(card.question)}</div>
+            <div class="hint">click to flip</div>
+          </div>
+          <div class="card-face back ${paletteClass}">
+            <div class="tag">Answer</div>
+            <div class="content">${escapeHtml(card.answer)}</div>
+            <div class="hint">click to flip back</div>
+          </div>
+        </div>
+      </div>
+      ${actionButtons}
+      <div class="controls">
+        <button class="ctrl-btn" id="btn-prev">&larr; prev</button>
+        <button class="ctrl-btn" id="btn-next">next &rarr;</button>
+      </div>
+    `;
+
+    const flipEl = document.getElementById('flip-card');
+    flipEl.addEventListener('click', () => flipEl.classList.toggle('flipped'));
+
+    if (viewMode !== 'known') {
+      document.getElementById('btn-know').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await fetch(`/api/known/${card.id}`, { method: 'POST' });
+        delete progress[card.question];
+        cards.splice(index, 1);       // remove it from the current study list too
+        if (index >= cards.length) index = 0;
+        await loadSources();
+        renderDeck();
+        updateStats();
+      });
+      document.getElementById('btn-learning').addEventListener('click', (e) => {
+        e.stopPropagation();
+        progress[card.question] = 'learning';
+        updateStats();
+        nextCard();
+      });
+    }
+
+    document.getElementById('btn-prev').addEventListener('click', (e) => {
+      e.stopPropagation();
+      index = (index - 1 + cards.length) % cards.length;
+      renderDeck();
+    });
+    document.getElementById('btn-next').addEventListener('click', (e) => {
+      e.stopPropagation();
+      nextCard();
+    });
+  }
+
+  function nextCard() {
+    index = (index + 1) % cards.length;
+    renderDeck();
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+  }
+
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    fileNameEl.textContent = file.name;
+    uploadLabel.textContent = 'Processing...';
+    uploadLabel.setAttribute('aria-disabled', 'true');
+    statusMsg.textContent = 'Reading PDF and generating flashcards — this can take up to a minute...';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      statusMsg.textContent = `Generated ${data.new_cards_count} new card(s) from ${data.filename}. Total: ${data.total_cards}.`;
+      await loadCards();
+      await loadSources();
+    } catch (err) {
+      statusMsg.textContent = 'Upload failed — check the server logs.';
+    } finally {
+      uploadLabel.textContent = 'Upload notes (PDF)';
+    }
+  });
+
+  loadCards();
+  loadSources();
+</script>
+</body>
+</html>
