@@ -1,0 +1,8 @@
+.venv/
+notes/
+flashcards.json
+known_cards.json
+.git/
+__pycache__/
+*.pyc
+.env
