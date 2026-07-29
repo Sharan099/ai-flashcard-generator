@@ -41,37 +41,53 @@ RESPONSE_SCHEMA = {
     "required": ["flashcards"],
 }
 
-PROMPT_TEMPLATE = """You will be given a piece of text extracted from a document. The text could be in ANY format:
-- Plain paragraphs explaining concepts
-- A table or list (e.g. word — meaning — example)
-- Bullet points or sentence fragments
-- Already-formatted questions and answers
-- Messy OCR output from a scanned or handwritten page
+# NOTE: no "f" prefix here — this is a plain string template, filled in later
+# via PROMPT_TEMPLATE.format(chunk=chunk). An f-string would try to evaluate
+# {chunk} immediately when the module loads, before "chunk" even exists.
+PROMPT_TEMPLATE = """
+You are an expert educator and flashcard creator.
 
-Your job: identify the individual facts, terms, or concepts in this text, and produce clear
-question/answer flashcard pairs from them — regardless of how the original text was structured.
+You will be given a piece of text extracted from a document. The text may be in ANY format, including:
+- Plain paragraphs explaining concepts
+- Tables or glossaries
+- Bullet points
+- Sentence fragments
+- Already formatted question-answer pairs
+- OCR output from scanned or handwritten documents
+
+Your task is to identify every meaningful concept, fact, definition, process, relationship, or event that is worth remembering and convert them into high-quality flashcards.
 
 Rules:
-- If the text is a glossary/table (e.g. "word - meaning"), turn each row into a question like
-  "What does <word> mean?" with the meaning as the answer.
-- If the text is already Q&A, reuse it directly.
-- If the text is prose or narrative, extract the key facts, characters, or events and phrase them as questions.
-- Ignore page numbers, headers, or fragments that are not real content.
-- You MUST produce EXACTLY {target_count} flashcards. Not more, not fewer.
 
-Respond with a JSON object of exactly this shape:
-{{"flashcards": [{{"question": "...", "answer": "..."}}]}}
+1. Read and understand the entire text before generating flashcards.
+2. Generate one flashcard for each distinct concept or fact worth remembering.
+3. Cover the content as completely as possible without creating redundant or overlapping flashcards.
+4. If the text is a glossary or table (e.g. "Word - Meaning"), convert each row into a flashcard.
+5. If the text already contains question-answer pairs, reuse and improve them if necessary.
+6. If the text is prose, extract the key ideas and convert them into concise, self-contained questions.
+7. Ignore page numbers, headers, footers, OCR artifacts, formatting noise, and incomplete fragments.
+8. Questions should be clear, specific, and understandable without requiring the original text.
+9. Answers should be concise while containing all essential information needed to answer the question.
+10. Do not generate duplicate, trivial, or highly overlapping flashcards.
+11. Do not invent information that is not explicitly supported by the provided text.
+12. The number of flashcards should be determined solely by the amount of unique, meaningful information in the text. Generate as many high-quality flashcards as necessary to achieve complete conceptual coverage, but avoid unnecessary fragmentation of closely related ideas.
+
+Return ONLY valid JSON in exactly this format:
+
+{{
+  "flashcards": [
+    {{
+      "question": "...",
+      "answer": "..."
+    }}
+  ]
+}}
+
+Do not include markdown, explanations, or any text outside the JSON.
 
 Text:
 {chunk}
 """
-
-
-def calculate_target_count(chunk: str) -> int:
-    """Estimate a reasonable number of flashcards based on content length."""
-    word_count = len(chunk.split())
-    target = word_count // 25
-    return max(2, min(target, 8))
 
 
 def _extract_qa_with_regex(raw_text: str) -> list[dict]:
@@ -143,22 +159,14 @@ async def _call_groq(prompt: str) -> list[dict]:
 
 async def generate_qa_pairs(chunk: str) -> list[dict]:
     """Generate flashcards from one chunk, using whichever provider is configured."""
-    target_count = calculate_target_count(chunk)
-    prompt = PROMPT_TEMPLATE.format(chunk=chunk, target_count=target_count)
 
-    logger.info("Sending chunk to %s (%d chars, target %d pairs)", AI_PROVIDER, len(chunk), target_count)
+    prompt = PROMPT_TEMPLATE.format(chunk=chunk)
+    logger.info("Sending chunk to %s (%d chars)", AI_PROVIDER, len(chunk))
 
     if AI_PROVIDER == "groq":
         qa_pairs = await _call_groq(prompt)
     else:
         qa_pairs = await _call_ollama(prompt)
 
-    if len(qa_pairs) < target_count:
-        logger.warning("Got %d pairs, wanted %d — retrying once", len(qa_pairs), target_count)
-        if AI_PROVIDER == "groq":
-            qa_pairs = await _call_groq(prompt)
-        else:
-            qa_pairs = await _call_ollama(prompt)
-
-    logger.info("Final result: %d Q&A pairs (target was %d)", len(qa_pairs), target_count)
+    logger.info("Final result: %d Q&A pairs", len(qa_pairs))
     return qa_pairs
